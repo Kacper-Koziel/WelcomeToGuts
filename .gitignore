@@ -1,0 +1,18 @@
+### IntelliJ IDEA ###
+.idea/
+*.iml
+out/
+out_jar/
+out_scratch/
+dist/
+dist2/
+src_backup/
+build_back/
+*.class
+
+### VS Code ###
+.vscode/
+
+### OS files ###
+.DS_Store
+Thumbs.db
