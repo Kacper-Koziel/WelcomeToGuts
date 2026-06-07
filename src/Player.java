@@ -33,27 +33,43 @@ public class Player {
     public void setLives(int lives) { this.lives = lives; }
 
     public void move(double dx, double dy, GameMap map, double dt) {
-        double radius = 0.32;
+        double radius = 0.28;
         
-        double newX = x + dx;
-        double newY = y + dy;
+        x += dx;
+        resolveCollisions(map, radius);
 
-        boolean canMoveX = map.isWalkable(newX - radius, y - radius) &&
-                           map.isWalkable(newX - radius, y + radius) &&
-                           map.isWalkable(newX + radius, y - radius) &&
-                           map.isWalkable(newX + radius, y + radius) &&
-                           map.isWalkable(newX, y);
-        if (canMoveX) {
-            x = newX;
-        }
+        y += dy;
+        resolveCollisions(map, radius);
+    }
 
-        boolean canMoveY = map.isWalkable(x - radius, newY - radius) &&
-                           map.isWalkable(x - radius, newY + radius) &&
-                           map.isWalkable(x + radius, newY - radius) &&
-                           map.isWalkable(x + radius, newY + radius) &&
-                           map.isWalkable(x, newY);
-        if (canMoveY) {
-            y = newY;
+    private void resolveCollisions(GameMap map, double radius) {
+        int cellX = (int) x;
+        int cellY = (int) y;
+
+        for (int wy = cellY - 1; wy <= cellY + 1; wy++) {
+            for (int wx = cellX - 1; wx <= cellX + 1; wx++) {
+                if (wx < 0 || wx >= map.getWidth() || wy < 0 || wy >= map.getHeight()) {
+                    continue;
+                }
+                
+                if (!map.isWalkable(wx + 0.5, wy + 0.5)) {
+                    double cx = Math.max(wx, Math.min(x, wx + 1.0));
+                    double cy = Math.max(wy, Math.min(y, wy + 1.0));
+
+                    double distDX = x - cx;
+                    double distDY = y - cy;
+                    double dist = Math.sqrt(distDX * distDX + distDY * distDY);
+
+                    if (dist < radius) {
+                        if (dist > 0.0001) {
+                            x += (distDX / dist) * (radius - dist);
+                            y += (distDY / dist) * (radius - dist);
+                        } else {
+                            x += radius;
+                        }
+                    }
+                }
+            }
         }
     }
 }

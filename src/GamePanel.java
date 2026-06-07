@@ -286,6 +286,57 @@ public class GamePanel extends JPanel {
             return;
         }
 
+        if (engine.getGameState() == GameEngine.GameState.PAUSED) {
+            g2.setColor(new Color(15, 12, 10));
+            g2.fillRect(0, 0, w, h);
+
+            RadialGradientPaint gp = new RadialGradientPaint(
+                new Point(w / 2, h / 2),
+                (float) (w * 0.6),
+                new float[]{0.0f, 1.0f},
+                new Color[]{new Color(50, 30, 15, 120), new Color(0, 0, 0, 0)}
+            );
+            g2.setPaint(gp);
+            g2.fillRect(0, 0, w, h);
+
+            String title = "PAUZA";
+            g2.setFont(new Font("Courier New", Font.BOLD, (int) (h * 0.08)));
+            
+            g2.setColor(new Color(255, 120, 50, 180));
+            drawCenteredString(g2, title, -2, (int) (-h * 0.1) - 1, w, h);
+            
+            g2.setColor(new Color(50, 150, 255, 180));
+            drawCenteredString(g2, title, 2, (int) (-h * 0.1) + 1, w, h);
+            
+            g2.setColor(new Color(240, 180, 50));
+            drawCenteredString(g2, title, 0, (int) (-h * 0.1), w, h);
+
+            g2.setFont(new Font("Courier New", Font.PLAIN, (int) (h * 0.026)));
+            g2.setColor(new Color(180, 160, 140));
+            drawCenteredString(g2, "Elektronika czeka...", 0, (int) (h * 0.01), w, h);
+
+            int sel = engine.getSelectedPauseOption();
+            g2.setFont(new Font("Courier New", Font.BOLD, (int) (h * 0.04)));
+            
+            String kontStr = (sel == 0) ? "> KONTYNUUJ <" : "  KONTYNUUJ  ";
+            g2.setColor(sel == 0 ? new Color(80, 255, 80) : new Color(100, 120, 100));
+            drawCenteredString(g2, kontStr, (int) (-w * 0.18), (int) (h * 0.14), w, h);
+            
+            String konStr = (sel == 1) ? "> KONIEC <" : "  KONIEC  ";
+            g2.setColor(sel == 1 ? new Color(255, 80, 80) : new Color(120, 100, 100));
+            drawCenteredString(g2, konStr, (int) (w * 0.18), (int) (h * 0.14), w, h);
+
+            g2.setFont(new Font("Courier New", Font.PLAIN, (int) (h * 0.022)));
+            g2.setColor(new Color(130, 130, 130));
+            drawCenteredString(g2, "[ Strzałki: Wybór  |  Enter: Potwierdź  |  Esc: Kontynuuj ]", 0, (int) (h * 0.24), w, h);
+
+            g2.setColor(new Color(0, 0, 0, 90));
+            for (int yCoord = 0; yCoord < h; yCoord += 4) {
+                g2.fillRect(0, yCoord, w, 2);
+            }
+            return;
+        }
+
         if (engine.getGameState() == GameEngine.GameState.CONFIRM_EXIT) {
             g2.setColor(new Color(15, 12, 10));
             g2.fillRect(0, 0, w, h);
@@ -446,7 +497,7 @@ public class GamePanel extends JPanel {
             
             g2.setColor(Color.WHITE);
             drawCenteredString(g2, "Musisz odnaleźć złoty klucz, a potem czerwone drzwi wyjściowe.", 0, (int) (-h * 0.08), w, h);
-            drawCenteredString(g2, "Kieruj się czerwonymi strzałkami na ścianach – wskażą Ci drogę.", 0, (int) (-h * 0.03), w, h);
+            drawCenteredString(g2, "Kieruj się kompasem na górze ekranu – wskaże Ci drogę.", 0, (int) (-h * 0.03), w, h);
 
             g2.setColor(new Color(230, 80, 80));
             drawCenteredString(g2, "--- ZAGROŻENIE: CIENIE ---", 0, (int) (h * 0.04), w, h);
@@ -477,6 +528,34 @@ public class GamePanel extends JPanel {
         int required = engine.getDifficulty().keysRequired;
         g2.setColor(new Color(240, 200, 40));
         drawStringWithShadow(g2, "KLUCZE: " + collected + " / " + required, (int) (w * 0.78), (int) (h * 0.06));
+
+        drawCompass(g2, w, h);
+
+        double exitDX = (map.getExitX() + 0.5) - player.getX();
+        double exitDY = (map.getExitY() + 0.5) - player.getY();
+        double distToExit = Math.sqrt(exitDX * exitDX + exitDY * exitDY);
+
+        if (distToExit < 1.6) {
+            String promptText;
+            Color promptColor;
+            
+            if (player.hasKey()) {
+                promptText = "[ E ]   NACIŚNIJ E, ABY WYJŚĆ";
+                promptColor = new Color(80, 255, 80);
+            } else {
+                promptText = "WYMAGANY ZŁOTY KLUCZ!";
+                promptColor = new Color(255, 60, 60);
+            }
+            
+            g2.setFont(new Font("Consolas", Font.BOLD, (int) (h * 0.03)));
+            
+            g2.setColor(new Color(0, 0, 0, 180));
+            drawCenteredString(g2, promptText, 2, (int) (h * 0.20) + 2, w, h);
+            
+            int textAlpha = 180 + (int) (75 * Math.sin(System.currentTimeMillis() * 0.007));
+            g2.setColor(new Color(promptColor.getRed(), promptColor.getGreen(), promptColor.getBlue(), textAlpha));
+            drawCenteredString(g2, promptText, 0, (int) (h * 0.20), w, h);
+        }
 
         double strain = engine.getEyeStrain();
         boolean critical = strain > 0.7;
@@ -658,5 +737,155 @@ public class GamePanel extends JPanel {
 
     public void setScreenImage(BufferedImage screenImage) {
         this.screenImage = screenImage;
+    }
+
+    private void drawCompass(Graphics2D g2, int w, int h) {
+        if (player == null || map == null) return;
+
+        double pAngle = player.getAngle();
+
+        int bandW = 260;
+        int bandH = 26;
+        int bx = w / 2 - bandW / 2;
+        int by = (int) (h * 0.04);
+
+        g2.setColor(new Color(15, 12, 10, 160));
+        g2.fillRect(bx, by, bandW, bandH);
+
+        g2.setColor(new Color(150, 120, 80, 160));
+        g2.drawLine(bx, by, bx + bandW, by);
+        g2.drawLine(bx, by + bandH, bx + bandW, by + bandH);
+
+        Shape oldClip = g2.getClip();
+        g2.setClip(bx, by, bandW, bandH);
+
+        String[] labels = { "E", "SE", "S", "SW", "W", "NW", "N", "NE" };
+
+        for (int i = 0; i < 24; i++) {
+            double angle = i * (Math.PI / 12);
+            double diff = angle - pAngle;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+            while (diff >= Math.PI) diff -= 2 * Math.PI;
+
+            int cx = w / 2 + (int) (diff * 120);
+
+            if (cx >= bx - 20 && cx <= bx + bandW + 20) {
+                if (i % 6 == 0) {
+                    g2.setColor(new Color(230, 190, 100, 220));
+                    g2.drawLine(cx, by + 14, cx, by + 24);
+                } else if (i % 3 == 0) {
+                    g2.setColor(new Color(160, 140, 120, 170));
+                    g2.drawLine(cx, by + 17, cx, by + 24);
+                } else {
+                    g2.setColor(new Color(110, 95, 80, 110));
+                    g2.drawLine(cx, by + 20, cx, by + 24);
+                }
+
+                if (i % 3 == 0) {
+                    int labelIdx = i / 3;
+                    String label = labels[labelIdx];
+                    if (label.length() == 1) {
+                        g2.setFont(new Font("Consolas", Font.BOLD, 13));
+                        g2.setColor(new Color(255, 225, 150));
+                    } else {
+                        g2.setFont(new Font("Consolas", Font.PLAIN, 10));
+                        g2.setColor(new Color(180, 160, 130, 180));
+                    }
+                    int tw = g2.getFontMetrics().stringWidth(label);
+                    g2.drawString(label, cx - tw / 2, by + 12);
+                }
+            }
+        }
+
+        LinearGradientPaint gp = new LinearGradientPaint(
+            new Point(bx, by),
+            new Point(bx + bandW, by),
+            new float[]{0.0f, 0.15f, 0.5f, 0.85f, 1.0f},
+            new Color[]{
+                new Color(15, 12, 10, 230),
+                new Color(15, 12, 10, 0),
+                new Color(15, 12, 10, 0),
+                new Color(15, 12, 10, 0),
+                new Color(15, 12, 10, 230)
+            }
+        );
+        g2.setPaint(gp);
+        g2.fillRect(bx, by, bandW, bandH);
+
+        g2.setClip(oldClip);
+
+        g2.setColor(new Color(255, 60, 60, 240));
+        int[] nxPoints = { w / 2 - 5, w / 2 + 5, w / 2 };
+        int[] nyPoints = { by - 1, by - 1, by + 6 };
+        g2.fillPolygon(nxPoints, nyPoints, 3);
+        g2.drawLine(w / 2, by + 6, w / 2, by + 12);
+
+        double tx = -1;
+        double ty = -1;
+        boolean hasKey = player.hasKey();
+
+        if (hasKey) {
+            tx = map.getExitX() + 0.5;
+            ty = map.getExitY() + 0.5;
+        } else {
+            double minDist = Double.MAX_VALUE;
+            for (int y = 0; y < map.getHeight(); y++) {
+                for (int x = 0; x < map.getWidth(); x++) {
+                    if (map.getCell(x, y) == 6) {
+                        double dx = x + 0.5 - player.getX();
+                        double dy = y + 0.5 - player.getY();
+                        double d = dx * dx + dy * dy;
+                        if (d < minDist) {
+                            minDist = d;
+                            tx = x + 0.5;
+                            ty = y + 0.5;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (tx != -1) {
+            double angleToTarget = Math.atan2(ty - player.getY(), tx - player.getX());
+            double diff = angleToTarget - pAngle;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+            while (diff >= Math.PI) diff -= 2 * Math.PI;
+
+            int cx = w / 2 + (int) (diff * 120);
+
+            Color targetColor = hasKey ? new Color(60, 220, 60) : new Color(240, 180, 40);
+
+            if (cx >= bx && cx <= bx + bandW) {
+                double pulse = Math.abs(Math.sin(System.currentTimeMillis() * 0.005));
+                int pulseRadius = 6 + (int)(pulse * 6);
+                int pulseAlpha = (int)(180 * (1.0 - pulse));
+                g2.setColor(new Color(targetColor.getRed(), targetColor.getGreen(), targetColor.getBlue(), pulseAlpha));
+                g2.drawOval(cx - pulseRadius, by + bandH / 2 - pulseRadius, pulseRadius * 2, pulseRadius * 2);
+
+                g2.setClip(bx, by, bandW, bandH);
+                g2.setColor(targetColor);
+                g2.fillOval(cx - 5, by + bandH / 2 - 5, 10, 10);
+                
+                g2.setFont(new Font("Consolas", Font.BOLD, 9));
+                g2.setColor(Color.BLACK);
+                String letter = hasKey ? "E" : "K";
+                int lw = g2.getFontMetrics().stringWidth(letter);
+                g2.drawString(letter, cx - lw / 2, by + bandH / 2 + 3);
+                g2.setClip(oldClip);
+            } else {
+                int arrowAlpha = 140 + (int)(115 * Math.abs(Math.sin(System.currentTimeMillis() * 0.006)));
+                g2.setColor(new Color(targetColor.getRed(), targetColor.getGreen(), targetColor.getBlue(), arrowAlpha));
+                int arrowY = by + bandH / 2;
+                g2.setStroke(new java.awt.BasicStroke(2));
+                if (diff < 0) {
+                    g2.drawLine(bx - 12, arrowY - 5, bx - 17, arrowY);
+                    g2.drawLine(bx - 17, arrowY, bx - 12, arrowY + 5);
+                } else {
+                    g2.drawLine(bx + bandW + 12, arrowY - 5, bx + bandW + 17, arrowY);
+                    g2.drawLine(bx + bandW + 17, arrowY, bx + bandW + 12, arrowY + 5);
+                }
+                g2.setStroke(new java.awt.BasicStroke(1));
+            }
+        }
     }
 }

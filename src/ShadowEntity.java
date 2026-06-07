@@ -134,66 +134,37 @@ public class ShadowEntity {
             }
         }
 
-        if (canSeePlayer || canHearPlayer) {
-            aiState = AIState.CHASING;
-            lastSeenX = px;
-            lastSeenY = py;
-        }
-
         int tx = -1;
         int ty = -1;
 
-        if (aiState == AIState.CHASING) {
+        if (player.hasKey()) {
+            aiState = AIState.CHASING;
+            tx = (int) px;
+            ty = (int) py;
+        } else {
             if (canSeePlayer || canHearPlayer) {
-                tx = (int) px;
-                ty = (int) py;
-            } else {
-                tx = (int) lastSeenX;
-                ty = (int) lastSeenY;
+                aiState = AIState.CHASING;
+                lastSeenX = px;
+                lastSeenY = py;
+            }
 
-                double distToLastSeen = Math.sqrt((lastSeenX - x) * (lastSeenX - x) + (lastSeenY - y) * (lastSeenY - y));
-                if (distToLastSeen < 0.6) {
-                    aiState = AIState.WANDERING;
-                    wanderTargetX = -1;
+            if (aiState == AIState.CHASING) {
+                if (canSeePlayer || canHearPlayer) {
+                    tx = (int) px;
+                    ty = (int) py;
+                } else {
+                    tx = (int) lastSeenX;
+                    ty = (int) lastSeenY;
+
+                    double distToLastSeen = Math.sqrt((lastSeenX - x) * (lastSeenX - x) + (lastSeenY - y) * (lastSeenY - y));
+                    if (distToLastSeen < 0.6) {
+                        aiState = AIState.WANDERING;
+                        wanderTargetX = -1;
+                    }
                 }
             }
-        }
 
-        if (aiState == AIState.WANDERING) {
-            if (player.hasKey()) {
-                if (wanderTargetX == -1 || Math.sqrt((wanderTargetX + 0.5 - x) * (wanderTargetX + 0.5 - x) + (wanderTargetY + 0.5 - y) * (wanderTargetY + 0.5 - y)) < 0.6 || random.nextDouble() < 0.05) {
-                    int pTileX = (int) px;
-                    int pTileY = (int) py;
-                    boolean found = false;
-                    for (int attempt = 0; attempt < 30; attempt++) {
-                        int dxTile = random.nextInt(2 * keySearchRange + 1) - keySearchRange;
-                        int dyTile = random.nextInt(2 * keySearchRange + 1) - keySearchRange;
-                        
-                        if (dxTile == 0 && dyTile == 0) {
-                            if (random.nextBoolean()) {
-                                dxTile = random.nextBoolean() ? 1 : -1;
-                            } else {
-                                dyTile = random.nextBoolean() ? 1 : -1;
-                            }
-                        }
-                        
-                        int rx = pTileX + dxTile;
-                        int ry = pTileY + dyTile;
-                        if (rx > 0 && rx < map.getWidth() - 1 && ry > 0 && ry < map.getHeight() - 1) {
-                            if (map.getCell(rx, ry) == 0) {
-                                wanderTargetX = rx;
-                                wanderTargetY = ry;
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!found) {
-                        wanderTargetX = pTileX + (random.nextBoolean() ? 1 : -1);
-                        wanderTargetY = pTileY + (random.nextBoolean() ? 1 : -1);
-                    }
-                }
-            } else {
+            if (aiState == AIState.WANDERING) {
                 if (wanderTargetX == -1 || Math.sqrt((wanderTargetX + 0.5 - x) * (wanderTargetX + 0.5 - x) + (wanderTargetY + 0.5 - y) * (wanderTargetY + 0.5 - y)) < 0.6) {
                     int rx = (int) x;
                     int ry = (int) y;
@@ -214,14 +185,15 @@ public class ShadowEntity {
                         wanderTargetY = (int) py;
                     }
                 }
+                tx = wanderTargetX;
+                ty = wanderTargetY;
             }
-            tx = wanderTargetX;
-            ty = wanderTargetY;
         }
 
         updateTargetBFS(tx, ty, map);
 
-        double speed = baseSpeed * (isBlinking ? 1.5 : 1.0) * dt;
+        double speedMultiplier = player.hasKey() ? 1.12 : 1.0;
+        double speed = baseSpeed * speedMultiplier * (isBlinking ? 1.5 : 1.0) * dt;
 
         if (playerDist < 1.3 && canSeePlayer) {
             if (playerDist > 0.05) {
@@ -242,17 +214,33 @@ public class ShadowEntity {
         int minBFS = getDistanceToTarget(ex, ey);
         if (minBFS == -1) minBFS = Integer.MAX_VALUE;
 
+        java.util.List<int[]> walkableNeighbors = new java.util.ArrayList<>();
+        int bestNeighborIdx = -1;
+
         for (int i = 0; i < 4; i++) {
             int nx = ex + ndx[i];
             int ny = ey + ndy[i];
             if (map.isWalkable(nx + 0.5, ny + 0.5)) {
                 int distVal = getDistanceToTarget(nx, ny);
-                if (distVal >= 0 && distVal < minBFS) {
-                    minBFS = distVal;
-                    bestNX = nx;
-                    bestNY = ny;
+                if (distVal >= 0) {
+                    walkableNeighbors.add(new int[]{nx, ny, distVal});
+                    if (distVal < minBFS) {
+                        minBFS = distVal;
+                        bestNeighborIdx = walkableNeighbors.size() - 1;
+                    }
                 }
             }
+        }
+
+        if (player.hasKey() && random.nextDouble() < 0.22 && walkableNeighbors.size() > 1) {
+            int randIdx = random.nextInt(walkableNeighbors.size());
+            int[] chosen = walkableNeighbors.get(randIdx);
+            bestNX = chosen[0];
+            bestNY = chosen[1];
+        } else if (bestNeighborIdx != -1) {
+            int[] chosen = walkableNeighbors.get(bestNeighborIdx);
+            bestNX = chosen[0];
+            bestNY = chosen[1];
         }
 
         double targetX = bestNX + 0.5;
@@ -356,6 +344,12 @@ public class ShadowEntity {
         this.x = rx;
         this.y = ry;
         this.frozen = false;
+        this.aiState = AIState.WANDERING;
+        this.wanderTargetX = -1;
+        this.wanderTargetY = -1;
+        this.lastSeenX = -1;
+        this.lastSeenY = -1;
+        this.pathBFS = null;
     }
 
     private boolean isCellVisibleToPlayer(double targetX, double targetY, Player player, GameMap map) {

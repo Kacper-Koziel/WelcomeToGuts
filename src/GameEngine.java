@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class GameEngine {
-    public enum GameState { MENU, PLAYING, JUMPSCARE, GAMEOVER, GAMEWON, SETTINGS, CONFIRM_EXIT }
+    public enum GameState { MENU, PLAYING, PAUSED, JUMPSCARE, GAMEOVER, GAMEWON, SETTINGS, CONFIRM_EXIT }
 
     public enum Difficulty {
         EASY(29, 1, 0.90, 0.08, 1, 16, "ŁATWY"),
@@ -50,6 +50,7 @@ public class GameEngine {
     private int collectedKeys = 0;
     private int selectedMenuOption = 1;
     private int confirmExitSelection = 1;
+    private int selectedPauseOption = 0;
     private boolean showingRules = false;
 
     private int selectedSettingsOption = 0;
@@ -161,10 +162,28 @@ public class GameEngine {
                 if (code == KeyEvent.VK_ESCAPE) {
                     gameState = GameState.MENU;
                 }
+            } else if (gameState == GameState.PAUSED) {
+                if (code == KeyEvent.VK_LEFT || code == KeyEvent.VK_A || code == KeyEvent.VK_UP || code == KeyEvent.VK_W) {
+                    selectedPauseOption = 0;
+                }
+                if (code == KeyEvent.VK_RIGHT || code == KeyEvent.VK_D || code == KeyEvent.VK_DOWN || code == KeyEvent.VK_S) {
+                    selectedPauseOption = 1;
+                }
+                if (code == KeyEvent.VK_ENTER) {
+                    if (selectedPauseOption == 0) {
+                        gameState = GameState.PLAYING;
+                    } else {
+                        gameState = GameState.MENU;
+                        SoundManager.stopAmbientMusic();
+                    }
+                }
+                if (code == KeyEvent.VK_ESCAPE) {
+                    gameState = GameState.PLAYING;
+                }
             } else if (gameState == GameState.PLAYING) {
                 if (code == KeyEvent.VK_ESCAPE) {
-                    gameState = GameState.MENU;
-                    SoundManager.stopAmbientMusic();
+                    gameState = GameState.PAUSED;
+                    selectedPauseOption = 0;
                     return;
                 }
                 if (showingRules) {
@@ -214,6 +233,7 @@ public class GameEngine {
     public GamePanel getPanel() { return panel; }
     public GameState getGameState() { return gameState; }
     public int getConfirmExitSelection() { return confirmExitSelection; }
+    public int getSelectedPauseOption() { return selectedPauseOption; }
     public Difficulty getDifficulty() { return difficulty; }
     public int getCollectedKeys() { return collectedKeys; }
     public int getCurrentSensitivityIndex() { return currentSensitivityIndex; }
@@ -306,6 +326,8 @@ public class GameEngine {
                         physicsAccumulator -= fixedStep;
                     }
                 }
+                raycaster.render(screenImage, player, map, shadows, true);
+            } else if (gameState == GameState.PAUSED) {
                 raycaster.render(screenImage, player, map, shadows, true);
             } else if (gameState == GameState.JUMPSCARE) {
                 updateJumpscare(dt);
@@ -415,6 +437,10 @@ public class GameEngine {
 
     public void setWindowFocused(boolean focused) {
         this.windowFocused = focused;
+        if (!focused && gameState == GameState.PLAYING) {
+            gameState = GameState.PAUSED;
+            selectedPauseOption = 0;
+        }
     }
 
     private void interact() {
@@ -523,6 +549,7 @@ public class GameEngine {
         }
 
         map.updatePlayerBFS(player.getX(), player.getY());
+        map.updateTargetBFS(player.hasKey(), player.getX(), player.getY());
         for (ShadowEntity shadow : shadows) {
             shadow.update(player, map, blinkTimer > 0, difficulty.baseSpeed, difficulty.keySearchRange, dt);
 

@@ -428,20 +428,6 @@ public class Raycaster {
                 pixels[y * COLS + x] = (r << 16) | (g << 8) | b;
             }
 
-            boolean isWallType5 = (wallType == 5);
-            boolean pointsRight = false;
-            if (isWallType5) {
-                double[] target = map.getTargetCellCenter(mapX, mapY);
-                double dxArrow = target[0] - (mapX + 0.5);
-                double dyArrow = target[1] - (mapY + 0.5);
-
-                if (side == 0) {
-                    pointsRight = (eyeX > 0) ? (dyArrow > 0) : (dyArrow < 0);
-                } else {
-                    pointsRight = (eyeY > 0) ? (dxArrow < 0) : (dxArrow > 0);
-                }
-            }
-
             for (int y = ceilingClamped; y < floorClamped; y++) {
                 double wallY = (y - exactCeiling) / exactWallHeight;
 
@@ -462,21 +448,6 @@ public class Raycaster {
                         baseR = 215; baseG = 200; baseB = 125;
                     } else {
                         baseR = 195; baseG = 180; baseB = 110;
-                    }
-                }
-
-                if (isWallType5) {
-                    boolean isArrow;
-                    if (pointsRight) {
-                        isArrow = (wallY > 0.45 && wallY < 0.53 && hitFraction > 0.25 && hitFraction < 0.55) ||
-                                  (hitFraction >= 0.55 && hitFraction <= 0.75 && Math.abs(wallY - 0.49) < (0.75 - hitFraction) * 0.6);
-                    } else {
-                        isArrow = (wallY > 0.45 && wallY < 0.53 && hitFraction > 0.45 && hitFraction < 0.75) ||
-                                  (hitFraction >= 0.25 && hitFraction <= 0.45 && Math.abs(wallY - 0.49) < (hitFraction - 0.25) * 0.6);
-                    }
-
-                    if (isArrow) {
-                        baseR = 170; baseG = 20; baseB = 20;
                     }
                 }
 

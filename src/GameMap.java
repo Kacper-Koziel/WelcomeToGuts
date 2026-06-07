@@ -2,6 +2,9 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Collections;
+import java.util.List;
+import java.util.ArrayList;
 
 public class GameMap {
     private int width;
@@ -16,6 +19,9 @@ public class GameMap {
 
     private int lastPlayerX = -1;
     private int lastPlayerY = -1;
+    private int lastTargetX = -1;
+    private int lastTargetY = -1;
+    private boolean lastPlayerHasKey = false;
 
     public GameMap(int width, int height, int totalKeysRequired) {
         this.width = width % 2 == 0 ? width + 1 : width;
@@ -98,6 +104,9 @@ public class GameMap {
     }
 
     public void updateTargetBFS(boolean playerHasKey, double px, double py) {
+        int targetX;
+        int targetY;
+
         if (!playerHasKey) {
             int bestKeyX = -1;
             int bestKeyY = -1;
@@ -119,18 +128,57 @@ public class GameMap {
             }
 
             if (bestKeyX != -1) {
-                targetBFS = computeBFS(bestKeyX, bestKeyY);
+                targetX = bestKeyX;
+                targetY = bestKeyY;
             } else {
-                targetBFS = computeBFS(exitX, exitY);
+                targetX = exitX;
+                targetY = exitY;
             }
         } else {
-            targetBFS = computeBFS(exitX, exitY);
+            targetX = exitX;
+            targetY = exitY;
+        }
+
+        if (targetX != lastTargetX || targetY != lastTargetY || playerHasKey != lastPlayerHasKey || targetBFS == null) {
+            lastTargetX = targetX;
+            lastTargetY = targetY;
+            lastPlayerHasKey = playerHasKey;
+            targetBFS = computeBFS(targetX, targetY);
         }
     }
 
     public int getPlayerDistance(int x, int y) {
         if (playerBFS == null || x < 0 || x >= width || y < 0 || y >= height) return -1;
         return playerBFS[y][x];
+    }
+
+    public int[] getNextPathStep(int x, int y) {
+        if (targetBFS == null) return new int[]{x, y};
+
+        int[] dx = {1, -1, 0, 0};
+        int[] dy = {0, 0, 1, -1};
+
+        int bestX = x;
+        int bestY = y;
+        int minDist = Integer.MAX_VALUE;
+
+        for (int i = 0; i < 4; i++) {
+            int nx = x + dx[i];
+            int ny = y + dy[i];
+
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                int cell = grid[ny][nx];
+                if (cell == 0 || cell == 4 || cell == 6 || cell == 3) {
+                    int dist = targetBFS[ny][nx];
+                    if (dist >= 0 && dist < minDist) {
+                        minDist = dist;
+                        bestX = nx;
+                        bestY = ny;
+                    }
+                }
+            }
+        }
+        return new int[]{bestX, bestY};
     }
 
     public double[] getTargetCellCenter(int x, int y) {
@@ -179,12 +227,34 @@ public class GameMap {
 
         grid[1][1] = 0;
 
-        exitX = width - 2;
-        exitY = height - 1;
-        grid[exitY][exitX] = 3;
-        grid[exitY - 1][exitX] = 0;
-
         Random rand = new Random();
+        int side = rand.nextInt(4);
+        if (side == 0) {
+            exitY = 0;
+            int maxO = (width - 2 - 3) / 2;
+            exitX = (maxO > 0) ? (2 * rand.nextInt(maxO + 1) + 3) : (width - 2);
+            grid[exitY][exitX] = 3;
+            grid[1][exitX] = 0;
+        } else if (side == 1) {
+            exitY = height - 1;
+            int maxO = (width - 2 - 1) / 2;
+            exitX = 2 * rand.nextInt(maxO + 1) + 1;
+            grid[exitY][exitX] = 3;
+            grid[exitY - 1][exitX] = 0;
+        } else if (side == 2) {
+            exitX = 0;
+            int maxO = (height - 2 - 3) / 2;
+            exitY = (maxO > 0) ? (2 * rand.nextInt(maxO + 1) + 3) : (height - 2);
+            grid[exitY][exitX] = 3;
+            grid[exitY][1] = 0;
+        } else {
+            exitX = width - 1;
+            int maxO = (height - 2 - 1) / 2;
+            exitY = 2 * rand.nextInt(maxO + 1) + 1;
+            grid[exitY][exitX] = 3;
+            grid[exitY][width - 2] = 0;
+        }
+
         for (int y = 1; y < height - 1; y++) {
             for (int x = 1; x < width - 1; x++) {
                 if (grid[y][x] == 2) {
@@ -199,13 +269,16 @@ public class GameMap {
 
         java.util.List<int[]> placedKeys = new java.util.ArrayList<>();
         for (int k = 0; k < totalKeysRequired; k++) {
-            int bestX = 1;
-            int bestY = 1;
-            double maxScore = -1;
+            java.util.List<KeyCandidate> candidates = new java.util.ArrayList<>();
 
             for (int y = 1; y < height - 1; y++) {
                 for (int x = 1; x < width - 1; x++) {
-                    if (grid[y][x] == 0 && (x != 1 || y != 1) && (x != exitX || y != exitY - 1)) {
+                    boolean isExitAdj = (side == 0 && y == 1 && x == exitX) ||
+                                        (side == 1 && y == exitY - 1 && x == exitX) ||
+                                        (side == 2 && y == exitY && x == 1) ||
+                                        (side == 3 && y == exitY && x == exitX - 1);
+
+                    if (grid[y][x] == 0 && (x != 1 || y != 1) && !isExitAdj) {
                         boolean alreadyKey = false;
                         for (int[] pk : placedKeys) {
                             if (pk[0] == x && pk[1] == y) {
@@ -216,7 +289,7 @@ public class GameMap {
                         if (alreadyKey) continue;
 
                         double distToPlayer = Math.sqrt((x - 1) * (x - 1) + (y - 1) * (y - 1));
-                        double distToExit = Math.sqrt((x - exitX) * (x - exitX) + (y - (exitY - 1)) * (y - (exitY - 1)));
+                        double distToExit = Math.sqrt((x - exitX) * (x - exitX) + (y - exitY) * (y - exitY));
 
                         double distToOtherKeys = 1.0;
                         for (int[] pk : placedKeys) {
@@ -225,28 +298,30 @@ public class GameMap {
                         }
 
                         double score = distToPlayer * distToExit * distToOtherKeys;
-                        if (score > maxScore) {
-                            maxScore = score;
-                            bestX = x;
-                            bestY = y;
-                        }
+                        candidates.add(new KeyCandidate(x, y, score));
                     }
                 }
             }
 
-            grid[bestY][bestX] = 6;
-            placedKeys.add(new int[]{bestX, bestY});
+            if (!candidates.isEmpty()) {
+                Collections.sort(candidates, (c1, c2) -> Double.compare(c2.score, c1.score));
+                int limit = Math.min(candidates.size(), 6);
+                int chosenIdx = rand.nextInt(limit);
+                KeyCandidate chosen = candidates.get(chosenIdx);
+                grid[chosen.y][chosen.x] = 6;
+                placedKeys.add(new int[]{chosen.x, chosen.y});
+            }
         }
 
-        for (int y = 1; y < height - 1; y++) {
-            for (int x = 1; x < width - 1; x++) {
-                if (grid[y][x] == 2) {
-                    boolean adjCorridor = (grid[y][x - 1] == 0 || grid[y][x + 1] == 0 || grid[y - 1][x] == 0 || grid[y + 1][x] == 0);
-                    if (adjCorridor && rand.nextDouble() < 0.04) {
-                        grid[y][x] = 5;
-                    }
-                }
-            }
+    }
+
+    private static class KeyCandidate {
+        int x, y;
+        double score;
+        KeyCandidate(int x, int y, double score) {
+            this.x = x;
+            this.y = y;
+            this.score = score;
         }
     }
 
